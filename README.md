@@ -233,4 +233,6 @@ This SDK is licensed under the [Apache License 2.0](LICENSE).
 koldera-core itself is licensed under the AGPL-3.0. Talking to it over HTTP with this SDK does not make your code
 AGPL: the SDK is a separate work under Apache-2.0, and a network client of an AGPL server is not a derivative of it.
 If you modify koldera-core and offer the modified version as a service, the AGPL applies to those modifications; see
-koldera-core's licence pages for details and for the commercial option.
+koldera-core's licence pages for details and for the commercial option. This is our reading of the licence, not
+legal advice; see koldera-core's [COMMERCIAL.md](https://github.com/koldera/koldera-core/blob/main/COMMERCIAL.md) and
+[LICENSE](https://github.com/koldera/koldera-core/blob/main/LICENSE).

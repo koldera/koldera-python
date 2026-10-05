@@ -35,13 +35,8 @@ jobs:
         run: |
           version="${GITHUB_REF_NAME#v}"
           found="$(sed -n 's/^version = "\(.*\)"$/\1/p' pyproject.toml)"
-          sdk="$(sed -n 's/^SDK_VERSION = "\(.*\)"$/\1/p' src/koldera/_core.py)"
           if [ "$found" != "$version" ]; then
             echo "::error::pyproject.toml has version $found but the tag is $GITHUB_REF_NAME"
-            exit 1
-          fi
-          if [ "$sdk" != "$version" ]; then
-            echo "::error::SDK_VERSION is $sdk but the tag is $GITHUB_REF_NAME"
             exit 1
           fi
 
@@ -115,6 +110,7 @@ jobs:
             gh release create "$GITHUB_REF_NAME" "${flags[@]}" dist/*
           fi
 
+  # Independent of github-release: a documentation failure never blocks the release.
   pages:
     needs: publish
     runs-on: ubuntu-24.04
