@@ -1,0 +1,60 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "koldera"
+version = "0.1.0"
+description = "Python SDK for koldera-core: PDF/UA checks and fixes, HTML and structured documents to tagged PDF, web scans. Sync and async clients."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+requires-python = ">=3.10"
+authors = [{ name = "Roman Lakusta" }]
+keywords = ["pdf", "accessibility", "pdf-ua", "wcag", "koldera"]
+dependencies = ["httpx>=0.28,<1"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Typing :: Typed",
+]
+
+[project.urls]
+Homepage = "https://koldera-accessibility.dev"
+Repository = "https://github.com/koldera/koldera-python"
+Issues = "https://github.com/koldera/koldera-python/issues"
+
+[dependency-groups]
+dev = [
+    "mypy==2.4.0",
+    "pytest==9.1.1",
+    "respx==0.23.1",
+    "ruff==0.16.10",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/koldera"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["error"]
+
+[tool.mypy]
+strict = true
+files = ["src", "tests"]
+python_version = "3.10"
+
+[tool.ruff]
+line-length = 140
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "RUF"]
