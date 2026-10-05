@@ -7,7 +7,7 @@ import tarfile
 import zipfile
 from pathlib import Path
 
-SDIST_TOP = {"src", "tests", "LICENSE", "NOTICE", "README.md", "CHANGELOG.md", "pyproject.toml", "PKG-INFO"}
+SDIST_TOP = {"src", "tests", "contracts", "scripts", "LICENSE", "NOTICE", "README.md", "CHANGELOG.md", "pyproject.toml", "PKG-INFO"}
 # hatchling always adds this one.
 OPTIONAL = {".gitignore"}
 

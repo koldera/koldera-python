@@ -34,6 +34,7 @@ Issues = "https://github.com/koldera/koldera-python/issues"
 [dependency-groups]
 dev = [
     "mypy==2.4.0",
+    "packaging==26.3",
     "pdoc==16.0.0",
     "pytest==9.1.1",
     "respx==0.23.1",
@@ -42,7 +43,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.sdist]
-include = ["/src", "/tests", "/LICENSE", "/NOTICE", "/README.md", "/CHANGELOG.md", "/pyproject.toml"]
+include = ["/src", "/tests", "/contracts", "/scripts", "/LICENSE", "/NOTICE", "/README.md", "/CHANGELOG.md", "/pyproject.toml"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/koldera"]

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
+import importlib.metadata
 import json
 import os
 import re
@@ -22,7 +23,10 @@ from .errors import ConfigurationError, Problem, ServerError, StorageError, erro
 from .models import ReadingOrderRemediation, ResponseMeta, problem_errors
 
 SDK_NAME = "koldera-sdk-python"
-SDK_VERSION = "0.1.0"
+try:
+    SDK_VERSION = importlib.metadata.version("koldera")
+except importlib.metadata.PackageNotFoundError:  # a source checkout that was never installed
+    SDK_VERSION = "0.0.0+source"
 MAX_POLL_DELAY = 10.0
 MAX_BUSY_RETRIES = 2
 MAX_NETWORK_RETRIES = 2

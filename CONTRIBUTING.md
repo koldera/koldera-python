@@ -89,13 +89,17 @@ One-time setup by the owner:
    is created by the first publish; no API token is ever stored.
 3. In the GitHub repository settings, create the environment `pypi` (Settings, Environments). Optionally require a
    reviewer for it, so every publish waits for an approval.
-4. In the repository settings, open Pages and set the source to "GitHub Actions".
-5. Optional: once the project exists on PyPI, keep trusted publishing as the only route and do not create API tokens.
+4. In the repository settings, open Pages and set the source to "GitHub Actions". Pages on a private repository needs
+   a paid GitHub plan; it works once the repository is public. The `github-pages` environment already allows
+   deployments from tags `v*` (set up with the GitHub API); if it was recreated, add a deployment tag rule `v*` under
+   Settings, Environments, github-pages.
+5. Once the repository is public, enable private vulnerability reporting (Settings, Code security).
+6. Optional: once the project exists on PyPI, keep trusted publishing as the only route and do not create API tokens.
 
 To release:
 
-1. Make sure `main` is green. Set `version` in `pyproject.toml` and `SDK_VERSION` in `src/koldera/_core.py` to the new
-   version, and move the changelog entry from "Unreleased" to the version and date.
+1. Make sure `main` is green. Until koldera-core is public the CI contract check is skipped, so run it by hand: fetch
+   `contracts/*` from koldera-core at the commit in `contracts/CORE_VERSION` and diff them against this repository. Set `version` in `pyproject.toml` (the package version is read from the installed metadata) and move the changelog entry from "Unreleased" to the version and date.
 2. Commit and merge that change through a pull request.
 3. Tag the merged commit and push the tag:
 
@@ -107,6 +111,9 @@ To release:
 4. `release.yml` verifies that the tag matches the package version and sits on `main`, runs the whole CI workflow for
    that commit, builds the sdist and wheel with `uv build`, publishes them to PyPI with attestations, creates the
    GitHub Release with generated notes and deploys the pdoc site to GitHub Pages.
+
+The pending trusted publisher is first exercised by the real publish, so the first release can fail at that step
+(check the four values in step 2); nothing has been uploaded in that case and the tag can be re-run.
 
 If a step after the publish fails, fix the cause and re-run the failed jobs; PyPI never accepts the same file twice,
 so never reuse a version number for different content: bump to the next patch version instead.
