@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+import hashlib
 import json
 import os
 import re
@@ -189,6 +191,14 @@ def name_of(source: FileSource, default: str) -> str:
         return Path(source).name or default
     name = getattr(source, "name", None)
     return Path(name).name if isinstance(name, str) and name else default
+
+
+#: Payloads at or above this size are hashed in a worker thread by the async client.
+OFFLOAD_HASH_BYTES = 256 * 1024
+
+
+def sha256_hex(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
 
 
 def read_source(source: FileSource) -> bytes:
@@ -388,9 +398,14 @@ def redact(error: httpx.HTTPError, token: str) -> httpx.HTTPError:
         return error
     clean = text.replace(token, "***")
     try:
-        return type(error)(clean)
+        replacement: httpx.HTTPError = type(error)(clean)
     except TypeError:
-        return httpx.TransportError(clean)
+        replacement = httpx.TransportError(clean)
+    if isinstance(error, httpx.RequestError) and isinstance(replacement, httpx.RequestError):
+        # The request carries no credential in its text and callers use it to see what failed.
+        with contextlib.suppress(RuntimeError):
+            replacement.request = error.request
+    return replacement
 
 
 class RetryPolicy:

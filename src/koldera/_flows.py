@@ -6,7 +6,6 @@ behaviour that matters (idempotency, wait handling, polling, verified downloads)
 
 from __future__ import annotations
 
-import hashlib
 import time
 from collections.abc import Callable, Generator, Mapping
 from dataclasses import dataclass
@@ -69,12 +68,19 @@ class Read:
 
 
 @dataclass(frozen=True, slots=True)
+class Digest:
+    """SHA-256 of some bytes; the async client hashes large payloads in a worker thread."""
+
+    data: bytes
+
+
+@dataclass(frozen=True, slots=True)
 class Write:
     destination: BinaryIO | Path | str
     data: bytes
 
 
-Op = Call | Put | Get | Sleep | Read | Write
+Op = Call | Put | Get | Sleep | Read | Digest | Write
 Flow = Generator[Op, Any, T]
 
 
@@ -92,7 +98,7 @@ def upload(source: core.FileSource, content_type: str, file_name: str, key: str,
     """Issue a ticket, then PUT the bytes to storage (no bearer). Returns the consumed ticket."""
     core.check_upload(content_type, file_name)
     data: bytes = yield Read(source)
-    sha256 = hashlib.sha256(data).hexdigest()
+    sha256: str = yield Digest(data)
     result: core.CallResult = yield Call("POST", "/v1/uploads", core.upload_body(file_name, len(data), sha256, content_type), key)
     _notify(on_response, result.meta)
     ticket = core.parse(UploadTicket.from_json, result.value, result.status)
@@ -273,7 +279,8 @@ def download(artifact: Artifact, destination: BinaryIO | Path | str | None) -> F
     data: bytes = yield Get(artifact.download_url, artifact.size_bytes)
     if len(data) != artifact.size_bytes:
         raise StorageError(f"artifact {artifact.kind}: received {len(data)} bytes, expected {artifact.size_bytes}")
-    if hashlib.sha256(data).hexdigest() != artifact.sha256.lower():
+    digest: str = yield Digest(data)
+    if digest != artifact.sha256.lower():
         raise StorageError(f"artifact {artifact.kind}: SHA-256 mismatch")
     if destination is not None:
         yield Write(destination, data)
