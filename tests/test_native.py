@@ -177,3 +177,119 @@ def test_a_typed_document_is_posted_as_is(golden: Golden) -> None:
     with KolderaClient(token=SECRET_KEY, base_url=BASE_URL) as client:
         client.documents.create_job(document)
     assert golden.exchanges[0].json == document
+
+
+def _big_artifact(size: int) -> tuple[bytes, Any]:
+    import hashlib
+
+    from koldera import Artifact
+
+    data = bytes(range(256)) * (size // 256)
+    artifact = Artifact(
+        id="a",
+        kind="remediated",
+        sha256=hashlib.sha256(data).hexdigest(),
+        size_bytes=len(data),
+        download_url="https://storage.test/a",
+        expires_at=datetime(2030, 1, 1, tzinfo=timezone.utc),
+    )
+    return data, artifact
+
+
+def test_async_hashes_large_data_off_the_event_loop(monkeypatch: pytest.MonkeyPatch) -> None:
+    import threading
+
+    import koldera._core as core
+
+    data, artifact = _big_artifact(1024 * 1024)
+    threads: list[int] = []
+    real = core.sha256_hex
+
+    def spy(payload: bytes) -> str:
+        threads.append(threading.get_ident())
+        return real(payload)
+
+    monkeypatch.setattr(core, "sha256_hex", spy)
+
+    async def scenario() -> bytes:
+        transport = httpx.MockTransport(lambda request: httpx.Response(200, content=data))
+        async with AsyncKolderaClient(token=SECRET_KEY, base_url=BASE_URL, transport=transport) as client:
+            return await client.artifacts.download(artifact)
+
+    assert asyncio.run(scenario()) == data
+    assert threads
+    assert threading.get_ident() not in threads
+
+
+def test_async_hashes_small_data_inline_and_sync_always_inline(monkeypatch: pytest.MonkeyPatch) -> None:
+    import threading
+
+    import koldera._core as core
+
+    data, artifact = _big_artifact(1024)
+    threads: list[int] = []
+    real = core.sha256_hex
+
+    def spy(payload: bytes) -> str:
+        threads.append(threading.get_ident())
+        return real(payload)
+
+    monkeypatch.setattr(core, "sha256_hex", spy)
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, content=data))
+    with KolderaClient(token=SECRET_KEY, base_url=BASE_URL, transport=transport) as client:
+        assert client.artifacts.download(artifact) == data
+    assert threads == [threading.get_ident()]
+
+
+def test_redact_keeps_the_request_on_the_redacted_error() -> None:
+    from koldera._core import redact
+
+    request = httpx.Request("GET", "http://core.test/v1/info")
+    error = httpx.ConnectError("cannot connect with test-server-token", request=request)
+    clean = redact(error, "test-server-token")
+    assert "test-server-token" not in str(clean)
+    assert clean.request is request
+
+
+def test_redact_without_a_request_still_works() -> None:
+    from koldera._core import redact
+
+    clean = redact(httpx.ConnectError("cannot connect with test-server-token"), "test-server-token")
+    assert "test-server-token" not in str(clean)
+
+
+def _shape(function: Any) -> list[tuple[str, Any, Any, Any]]:
+    import inspect
+
+    return [(p.name, p.kind, p.default, p.annotation) for p in inspect.signature(function).parameters.values()]
+
+
+def test_sync_and_async_resources_have_the_same_parameters() -> None:
+    import inspect
+
+    import koldera.async_client as a
+    import koldera.client as s
+
+    checked = 0
+    for name in ("Uploads", "Pdf", "HtmlToPdf", "Web", "Documents", "Jobs", "Artifacts", "ClientSessions"):
+        sync_cls, async_cls = getattr(s, name), getattr(a, name)
+        methods = [m for m, v in vars(sync_cls).items() if callable(v) and not m.startswith("_")]
+        assert methods, name
+        assert methods == [m for m, v in vars(async_cls).items() if callable(v) and not m.startswith("_")], name
+        for method in methods:
+            assert _shape(getattr(sync_cls, method)) == _shape(getattr(async_cls, method)), f"{name}.{method}"
+            assert inspect.iscoroutinefunction(getattr(async_cls, method)), f"{name}.{method}"
+            checked += 1
+    assert checked >= 15
+    for method in ("info", "health"):
+        assert _shape(getattr(s.KolderaClient, method)) == _shape(getattr(a.AsyncKolderaClient, method))
+
+
+def test_the_package_version_matches_pyproject() -> None:
+    import re
+    from pathlib import Path
+
+    text = (Path(__file__).resolve().parent.parent / "pyproject.toml").read_text(encoding="utf8")
+    match = re.search(r'^version = "([^"]+)"', text, flags=re.M)
+    assert match is not None
+    assert koldera.__version__ == match.group(1)

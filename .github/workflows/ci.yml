@@ -1,0 +1,197 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  # release.yml runs this whole workflow for the tagged commit and publishes only when every job passed.
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_VERSION: "0.11.28"
+
+jobs:
+  hygiene:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - run: node scripts/check-source-hygiene.mjs
+      - run: node --test scripts/check-source-hygiene.test.mjs
+
+  gitleaks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # gitleaks scans the full history
+          persist-credentials: false
+      - name: Install gitleaks (pinned release, SHA-256 checked)
+        run: |
+          # The gitleaks-action wrapper needs a paid licence for organisations; the plain binary does not.
+          curl -fsSL -o gitleaks.tar.gz https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf gitleaks.tar.gz gitleaks
+      - name: Secrets in the working tree
+        run: ./gitleaks dir . --config .gitleaks.toml --redact --no-banner
+      - name: Secrets in the git history
+        run: ./gitleaks git . --config .gitleaks.toml --redact --no-banner
+
+  test:
+    name: test (python ${{ matrix.python }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ matrix.python }}
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run --frozen ruff check .
+      - run: uv run --frozen ruff format --check .
+      - run: uv run --frozen mypy
+      - run: uv run --frozen pytest
+
+  test-windows:
+    name: test (windows, python 3.13)
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.13"
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run --frozen pytest
+
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Vendored contracts equal koldera-core at contracts/CORE_VERSION
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          sha="$(tr -d '[:space:]' < contracts/CORE_VERSION)"
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::contracts/CORE_VERSION must hold a 40-character commit id"; exit 1; }
+          mkdir core
+          raw="https://api.github.com/repos/koldera/koldera-core/contents/contracts"
+          files="openapi.yaml document.schema.json problem.schema.json"
+
+          # Public repositories can be read without a token; once koldera-core is public the check is mandatory.
+          public=false
+          if [ "$(curl -sS -o /dev/null -w '%{http_code}' https://api.github.com/repos/koldera/koldera-core)" = "200" ]; then public=true; fi
+
+          auth=()
+          if ! $public; then auth=(-H "Authorization: Bearer $GH_TOKEN"); fi
+          readable=true
+          for f in $files; do
+            code="$(curl -sS -o "core/$f" -w '%{http_code}' -H "Accept: application/vnd.github.raw+json" "${auth[@]}" "$raw/$f?ref=$sha")"
+            if [ "$code" != "200" ]; then readable=false; echo "fetching $f returned HTTP $code"; break; fi
+          done
+
+          if ! $readable; then
+            if $public; then
+              echo "::error::koldera-core is public but contracts at $sha could not be fetched"
+              exit 1
+            fi
+            echo "::notice title=Contract check skipped::koldera-core is private and not readable with this workflow token. The check is enforced once the repository is public."
+            exit 0
+          fi
+
+          status=0
+          for f in $files; do
+            if ! diff -u "core/$f" "contracts/$f"; then
+              echo "::error::contracts/$f differs from koldera-core at $sha"
+              status=1
+            fi
+          done
+          exit $status
+
+  licences:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.13"
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: Licences of the runtime dependencies are on the allow-list
+        run: uv run --frozen python scripts/check_licences.py
+
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.13"
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv build
+      - name: Distribution metadata is valid (what PyPI checks at upload)
+        run: uv run --frozen twine check --strict dist/*
+      - name: Distribution contents
+        run: uv run --frozen python scripts/check_dist.py dist
+      - name: The wheel installs into a clean environment and imports
+        run: |
+          uv venv --python 3.13 "$RUNNER_TEMP/clean"
+          uv pip install --python "$RUNNER_TEMP/clean" dist/*.whl
+          "$RUNNER_TEMP/clean/bin/python" -c "import koldera; print(koldera.__version__)"
+      - name: Upload dry run
+        run: uv publish --dry-run dist/*
+
+  docs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.13"
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run --frozen pdoc --docformat google koldera -o site
+      - name: The API reference was generated
+        run: test -s site/koldera.html && test -s site/index.html

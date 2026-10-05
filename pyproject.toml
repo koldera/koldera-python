@@ -16,13 +16,13 @@ dependencies = ["httpx>=0.28,<1"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
-  "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Typing :: Typed",
 ]
 
@@ -34,10 +34,15 @@ Issues = "https://github.com/koldera/koldera-python/issues"
 [dependency-groups]
 dev = [
     "mypy==2.4.0",
+    "pdoc==16.0.0",
     "pytest==9.1.1",
     "respx==0.23.1",
     "ruff==0.16.10",
+    "twine==7.0.0",
 ]
+
+[tool.hatch.build.targets.sdist]
+include = ["/src", "/tests", "/LICENSE", "/NOTICE", "/README.md", "/CHANGELOG.md", "/pyproject.toml"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/koldera"]
@@ -48,7 +53,7 @@ filterwarnings = ["error"]
 
 [tool.mypy]
 strict = true
-files = ["src", "tests"]
+files = ["src", "tests", "scripts"]
 python_version = "3.10"
 
 [tool.ruff]
