@@ -108,8 +108,9 @@ To release:
    git push origin v0.1.0
    ```
 
-4. `release.yml` verifies that the tag matches the package version and sits on `main`, runs the whole CI workflow for
-   that commit, builds the sdist and wheel with `uv build`, publishes them to PyPI with attestations, creates the
+4. `release.yml` verifies that the tag matches the package version and sits on `main`, runs the whole `ci.yml` workflow
+   (hygiene, secret scan, licences, contracts, docs build, package checks) and the compatibility matrix (`matrix.yml`)
+   for that commit, builds the sdist and wheel with `uv build`, publishes them to PyPI with attestations, creates the
    GitHub Release with generated notes and deploys the pdoc site to GitHub Pages.
 
 The pending trusted publisher is first exercised by the real publish, so the first release can fail at that step
