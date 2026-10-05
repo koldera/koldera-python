@@ -51,12 +51,17 @@ def _write(destination: BinaryIO | Path | str, data: bytes) -> None:
 class _Runner:
     """Performs what the flows ask for with an ``httpx.AsyncClient``."""
 
-    def __init__(self, config: core.Config, transport: httpx.AsyncBaseTransport | None) -> None:
+    def __init__(
+        self, config: core.Config, transport: httpx.AsyncBaseTransport | None, storage_transport: httpx.AsyncBaseTransport | None
+    ) -> None:
         self.config = config
         self.http = httpx.AsyncClient(timeout=config.timeout, transport=transport, follow_redirects=False)
+        # Signed storage URLs carry their own authority: this client never sees the caller's transport or hooks.
+        self.storage = httpx.AsyncClient(timeout=httpx.Timeout(config.storage_timeout), transport=storage_transport, follow_redirects=False)
 
     async def close(self) -> None:
         await self.http.aclose()
+        await self.storage.aclose()
 
     async def run(self, flow: flows.Flow[T]) -> T:
         try:
@@ -121,22 +126,47 @@ class _Runner:
             raise core.api_error(response, retry_after)
 
     async def _put(self, op: flows.Put) -> None:
-        response = await self.http.put(op.url, content=op.data, headers={"Content-Type": op.content_type})
+        headers = {"Content-Type": op.content_type}
+        reason: str | None = None
+        response: httpx.Response | None = None
+        try:
+            response = await asyncio.wait_for(self.storage.put(op.url, content=op.data, headers=headers), self.config.storage_timeout)
+        except asyncio.TimeoutError:
+            reason = core.storage_timeout_reason(self.config.storage_timeout)
+        except httpx.HTTPError as error:
+            reason = type(error).__name__
+        if response is None:
+            raise core.storage_fault("upload", reason or "no response")
         if not response.is_success:
             raise core.storage_failure(response, "PUT")
 
     async def _get(self, op: flows.Get) -> bytes:
-        async with self.http.stream("GET", op.url) as response:
+        reason: str | None = None
+        outcome: bytes | Exception = b""
+        try:
+            outcome = await asyncio.wait_for(self._fetch(op), self.config.storage_timeout)
+        except asyncio.TimeoutError:
+            reason = core.storage_timeout_reason(self.config.storage_timeout)
+        except httpx.HTTPError as error:
+            reason = type(error).__name__
+        if reason is not None:
+            raise core.storage_fault("download", reason)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    async def _fetch(self, op: flows.Get) -> bytes | Exception:
+        async with self.storage.stream("GET", op.url) as response:
             if not response.is_success:
                 await response.aread()
-                raise core.storage_failure(response, "GET")
+                return core.storage_failure(response, "GET")
             chunks: list[bytes] = []
             total = 0
             async with aclosing(cast("AsyncGenerator[bytes, None]", response.aiter_bytes())) as stream:
                 async for chunk in stream:
                     total += len(chunk)
                     if total > op.expected:
-                        raise StorageError(f"storage sent more than the declared {op.expected} bytes")
+                        return StorageError(f"storage sent more than the declared {op.expected} bytes")
                     chunks.append(chunk)
             return b"".join(chunks)
 
@@ -149,7 +179,9 @@ class AsyncKolderaClient:
         token: server token, any non-empty string the server accepts (default: ``KOLDERA_TOKEN``). Never ship it
             to a browser; mint a session with ``client_sessions.create`` instead.
         timeout: per-request timeout in seconds (default 30); a ``wait`` stretches it to cover the wait.
-        transport: an ``httpx.AsyncBaseTransport`` (test seam, custom proxies).
+        transport: an ``httpx.AsyncBaseTransport`` for API requests (test seam, custom proxies).
+        storage_timeout: total seconds for one upload or download through a signed storage URL (default 600).
+        storage_transport: an ``httpx.AsyncBaseTransport`` for storage requests (test seam); it must not add credentials.
         user_agent_suffix: product token appended to the SDK's User-Agent.
 
     Network failures surface as ``httpx`` exceptions; everything the server or the SDK refuses is a
@@ -163,10 +195,12 @@ class AsyncKolderaClient:
         *,
         timeout: float = 30.0,
         transport: httpx.AsyncBaseTransport | None = None,
+        storage_timeout: float = 600.0,
+        storage_transport: httpx.AsyncBaseTransport | None = None,
         user_agent_suffix: str | None = None,
     ) -> None:
-        config = core.resolve_config(base_url, token, timeout, user_agent_suffix)
-        self._runner = _Runner(config, transport)
+        config = core.resolve_config(base_url, token, timeout, user_agent_suffix, storage_timeout)
+        self._runner = _Runner(config, transport, storage_transport)
         self.uploads = Uploads(self._runner)
         self.jobs = Jobs(self._runner)
         self.pdf = Pdf(self._runner)
