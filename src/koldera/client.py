@@ -72,6 +72,8 @@ class _Runner:
             return None
         if isinstance(op, flows.Read):
             return core.read_source(op.source)
+        if isinstance(op, flows.Digest):
+            return core.sha256_hex(op.data)
         if isinstance(op, flows.Put):
             self._put(op)
             return None

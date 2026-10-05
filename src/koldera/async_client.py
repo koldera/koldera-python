@@ -82,6 +82,10 @@ class _Runner:
             if isinstance(op.source, bytes | bytearray | memoryview):
                 return core.read_source(op.source)
             return await asyncio.to_thread(core.read_source, op.source)
+        if isinstance(op, flows.Digest):
+            if len(op.data) < core.OFFLOAD_HASH_BYTES:
+                return core.sha256_hex(op.data)
+            return await asyncio.to_thread(core.sha256_hex, op.data)
         if isinstance(op, flows.Put):
             await self._put(op)
             return None
