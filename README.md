@@ -217,7 +217,8 @@ with the status, `Location`, `Preference-Applied` and `Idempotent-Replayed`).
 | 0.1.x | 0.1.x | 3.10, 3.11, 3.12, 3.13, 3.14 |
 
 The vendored API description in [`contracts/`](contracts) records the koldera-core commit it was taken from
-(`contracts/CORE_VERSION`), and CI checks that the copy matches. Run koldera-core as described in its
+(`contracts/CORE_VERSION`) and the sdk-contract-kit commit it was synced from (`contracts/KIT_VERSION`), and CI checks
+that the copy matches. Run koldera-core as described in its
 [README](https://github.com/koldera/koldera-core#readme) and
 [deployment guide](https://github.com/koldera/koldera-core/blob/main/docs/deployment.md).
 
