@@ -1,6 +1,6 @@
 # koldera-python
 
-Python SDK for [koldera-core](https://github.com/koldera/koldera-core), the self-hosted service that checks PDFs
+Python SDK for koldera-core, the commercially licensed, self-hosted service that checks PDFs
 against the PDF/UA-1 machine rules, writes fixed copies, renders HTML and structured documents to tagged PDF, and scans
 web pages. A synchronous client (`KolderaClient`) and an asynchronous client (`AsyncKolderaClient`) share one
 implementation, are fully typed (`py.typed`) and run on Python 3.10 to 3.14.
@@ -150,7 +150,7 @@ with KolderaClient() as client:
 ```
 
 A rejected document raises `ValidationError` whose `errors` list `path`, `code` and `message` for each problem. The
-block rules are in [koldera-core's documents guide](https://github.com/koldera/koldera-core/blob/main/docs/documents.md).
+block rules are in koldera-core's documents guide.
 
 ## Errors
 
@@ -221,21 +221,14 @@ with the status, `Location`, `Preference-Applied` and `Idempotent-Replayed`).
 The vendored API description in [`contracts/`](contracts) records the koldera-core commit it was taken from
 (`contracts/CORE_VERSION`) and the sdk-contract-kit commit it was synced from (`contracts/KIT_VERSION`), and CI checks
 that the copy matches. Run koldera-core as described in its
-[README](https://github.com/koldera/koldera-core#readme) and
-[deployment guide](https://github.com/koldera/koldera-core/blob/main/docs/deployment.md).
+README and deployment guide.
 
 ## Links
 
-- [koldera-core](https://github.com/koldera/koldera-core): the service, API reference and deployment guide.
 - [Contributing](CONTRIBUTING.md), [security policy](SECURITY.md), [changelog](CHANGELOG.md).
 
 ## Licence
 
 This SDK is licensed under the [Apache License 2.0](LICENSE).
 
-koldera-core itself is licensed under the AGPL-3.0. Talking to it over HTTP with this SDK does not make your code
-AGPL: the SDK is a separate work under Apache-2.0, and a network client of an AGPL server is not a derivative of it.
-If you modify koldera-core and offer the modified version as a service, the AGPL applies to those modifications; see
-koldera-core's licence pages for details and for the commercial option. This is our reading of the licence, not
-legal advice; see koldera-core's [COMMERCIAL.md](https://github.com/koldera/koldera-core/blob/main/COMMERCIAL.md) and
-[LICENSE](https://github.com/koldera/koldera-core/blob/main/LICENSE).
+koldera-core is commercially licensed, self-hosted software; this SDK is Apache-2.0 and talks to it over its HTTP API.
