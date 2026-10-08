@@ -213,7 +213,7 @@ def test_async_hashes_large_data_off_the_event_loop(monkeypatch: pytest.MonkeyPa
 
     async def scenario() -> bytes:
         transport = httpx.MockTransport(lambda request: httpx.Response(200, content=data))
-        async with AsyncKolderaClient(token=SECRET_KEY, base_url=BASE_URL, transport=transport) as client:
+        async with AsyncKolderaClient(token=SECRET_KEY, base_url=BASE_URL, storage_transport=transport) as client:
             return await client.artifacts.download(artifact)
 
     assert asyncio.run(scenario()) == data
@@ -236,7 +236,7 @@ def test_async_hashes_small_data_inline_and_sync_always_inline(monkeypatch: pyte
 
     monkeypatch.setattr(core, "sha256_hex", spy)
     transport = httpx.MockTransport(lambda request: httpx.Response(200, content=data))
-    with KolderaClient(token=SECRET_KEY, base_url=BASE_URL, transport=transport) as client:
+    with KolderaClient(token=SECRET_KEY, base_url=BASE_URL, storage_transport=transport) as client:
         assert client.artifacts.download(artifact) == data
     assert threads == [threading.get_ident()]
 

@@ -37,12 +37,27 @@ uv build                              # sdist and wheel into dist/
 To run the tests on another Python version: `uv run --python 3.10 pytest` (uv creates a separate environment for it
 unless you set `UV_PROJECT_ENVIRONMENT`).
 
+### Against a real koldera-core
+
+`tests/test_live_core.py` runs the SDK against a running koldera-core (synthetic inputs only): a PDF analyze and fix with the fixed copy
+downloaded and its SHA-256 checked, one HTML-to-PDF job and one structured document job. It is skipped unless
+`KOLDERA_URL` and `KOLDERA_TOKEN` are both set, so CI without a server skips it:
+
+```bash
+KOLDERA_URL=http://localhost:8080 KOLDERA_TOKEN=... uv run pytest tests/test_live_core.py -s
+```
+
+Start koldera-core locally with `docker run` as in its README (bind it to `127.0.0.1` and set
+`KOLDERA_PUBLIC_URL=http://localhost:8080`).
+
 ### Contracts
 
-`contracts/openapi.yaml` and the schemas next to it are copied from koldera-core at the commit named in
-`contracts/CORE_VERSION`, and the golden fixtures drive the SDK tests. When koldera-core changes its API, update the
-copy and the commit id together; CI fetches the files at that commit and fails on a difference (it is skipped with a
-notice while koldera-core is private and not readable with the workflow's token).
+`contracts/` is a mirror of [sdk-contract-kit](https://github.com/koldera/sdk-contract-kit): `openapi.yaml` and the
+schemas next to it come from koldera-core at the commit named in `contracts/CORE_VERSION`, the golden fixtures drive
+the SDK tests, and `contracts/KIT_VERSION` names the kit commit. Do not edit `contracts/` here: change the kit and run
+its `scripts/sync-to-sdk.mjs` against this repository. CI fetches the kit at `contracts/KIT_VERSION` and fails on any
+difference in `contracts/` (it is skipped with a notice while sdk-contract-kit is private and not readable with the
+workflow token).
 
 ### Source hygiene
 
@@ -98,8 +113,9 @@ One-time setup by the owner:
 
 To release:
 
-1. Make sure `main` is green. Until koldera-core is public the CI contract check is skipped, so run it by hand: fetch
-   `contracts/*` from koldera-core at the commit in `contracts/CORE_VERSION` and diff them against this repository. Set `version` in `pyproject.toml` (the package version is read from the installed metadata) and move the changelog entry from "Unreleased" to the version and date.
+1. Make sure `main` is green. Until sdk-contract-kit is public the CI contract check is skipped, so run it by hand:
+   from a clean sdk-contract-kit checkout at the commit in `contracts/KIT_VERSION`, run
+   `node scripts/sync-to-sdk.mjs <this repository>` and check that `git status` shows no change in `contracts/`. Set `version` in `pyproject.toml` (the package version is read from the installed metadata) and move the changelog entry from "Unreleased" to the version and date.
 2. Commit and merge that change through a pull request.
 3. Tag the merged commit and push the tag:
 
@@ -108,8 +124,9 @@ To release:
    git push origin v0.1.0
    ```
 
-4. `release.yml` verifies that the tag matches the package version and sits on `main`, runs the whole CI workflow for
-   that commit, builds the sdist and wheel with `uv build`, publishes them to PyPI with attestations, creates the
+4. `release.yml` verifies that the tag matches the package version and sits on `main`, runs the whole `ci.yml` workflow
+   (hygiene, secret scan, licences, contracts, docs build, package checks) and the compatibility matrix (`matrix.yml`)
+   for that commit, builds the sdist and wheel with `uv build`, publishes them to PyPI with attestations, creates the
    GitHub Release with generated notes and deploys the pdoc site to GitHub Pages.
 
 The pending trusted publisher is first exercised by the real publish, so the first release can fail at that step

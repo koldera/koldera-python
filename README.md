@@ -204,7 +204,9 @@ is repeated up to twice with the same key, so a lost response does not create a 
 | `base_url` | origin of koldera-core; env `KOLDERA_URL` |
 | `token` | server token, any non-empty string the server accepts; env `KOLDERA_TOKEN` |
 | `timeout` | per-request timeout in seconds (default 30); a `wait` stretches it to cover the wait |
-| `transport` | an `httpx.BaseTransport` or `httpx.AsyncBaseTransport` (tests, custom proxies) |
+| `transport` | an `httpx.BaseTransport` or `httpx.AsyncBaseTransport` for API requests (tests, custom proxies) |
+| `storage_timeout` | total seconds for one upload or download through a signed storage URL (default 600) |
+| `storage_transport` | transport for storage requests (tests); it must not add credentials |
 | `user_agent_suffix` | product token appended to the SDK's User-Agent |
 
 Per call on job creation: `wait`, `until_finished`, `poll_timeout`, `idempotency_key` and `on_response` (a callback
@@ -217,7 +219,8 @@ with the status, `Location`, `Preference-Applied` and `Idempotent-Replayed`).
 | 0.1.x | 0.1.x | 3.10, 3.11, 3.12, 3.13, 3.14 |
 
 The vendored API description in [`contracts/`](contracts) records the koldera-core commit it was taken from
-(`contracts/CORE_VERSION`), and CI checks that the copy matches. Run koldera-core as described in its
+(`contracts/CORE_VERSION`) and the sdk-contract-kit commit it was synced from (`contracts/KIT_VERSION`), and CI checks
+that the copy matches. Run koldera-core as described in its
 README and deployment guide.
 
 ## Links

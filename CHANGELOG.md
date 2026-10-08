@@ -22,6 +22,9 @@ Initial release of `koldera`, for koldera-core 0.1.
 - Idempotency keys on creation calls; network failures are repeated with the same key.
 - Artifact downloads verify size and SHA-256 and raise `StorageError` on a mismatch. The async client hashes large
   payloads in a worker thread.
+- Uploads and downloads through signed storage URLs use an SDK-owned `httpx` client: it is not built from `transport`,
+  never sends `Authorization`, has its own `storage_timeout` (default 600 seconds, covering the whole transfer) and an
+  optional `storage_transport`. Storage network failures raise `StorageError` without the signed URL.
 - Files and artifacts are held in memory while they are transferred.
 - Apache-2.0 licence, CI on Python 3.10 to 3.14 (and Windows), contract check against koldera-core, licence check, secret
   scan, pdoc API reference, and a release workflow with PyPI trusted publishing and attestations.
