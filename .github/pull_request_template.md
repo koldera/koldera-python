@@ -12,6 +12,6 @@
 - [ ] `uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest` pass
 - [ ] `node scripts/check-source-hygiene.mjs` exits 0
 - [ ] README examples and the changelog are updated if the public API changed
-- [ ] `contracts/` and `contracts/CORE_VERSION` are updated together if koldera-core's API changed
+- [ ] `contracts/` is changed only by sdk-contract-kit's `scripts/sync-to-sdk.mjs` (which also updates `contracts/KIT_VERSION`)
 - [ ] No real documents, tokens, keys or personal data
 - [ ] Nothing here makes the SDK claim more than a machine check

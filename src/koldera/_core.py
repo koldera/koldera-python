@@ -11,7 +11,7 @@ import re
 import secrets
 import unicodedata
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
@@ -55,13 +55,16 @@ def new_idempotency_key() -> str:
 
 @dataclass(frozen=True, slots=True)
 class Config:
-    token: str
+    token: str = field(repr=False)
     base_url: str
     timeout: float
+    storage_timeout: float
     user_agent: str
 
 
-def resolve_config(base_url: str | None, token: str | None, timeout: float, user_agent_suffix: str | None) -> Config:
+def resolve_config(
+    base_url: str | None, token: str | None, timeout: float, user_agent_suffix: str | None, storage_timeout: float = 600.0
+) -> Config:
     secret = token if token is not None else os.environ.get("KOLDERA_TOKEN", "")
     if not isinstance(secret, str) or not secret.strip():
         raise ConfigurationError("token is required: pass token or set KOLDERA_TOKEN")
@@ -72,8 +75,10 @@ def resolve_config(base_url: str | None, token: str | None, timeout: float, user
         raise ConfigurationError("base_url must be an absolute http(s) URL")
     if not timeout > 0:
         raise ConfigurationError("timeout must be positive")
+    if not storage_timeout > 0:
+        raise ConfigurationError("storage_timeout must be positive")
     agent = f"{SDK_NAME}/{SDK_VERSION}" + (f" {user_agent_suffix}" if user_agent_suffix else "")
-    return Config(secret, base.rstrip("/"), float(timeout), agent)
+    return Config(secret, base.rstrip("/"), float(timeout), float(storage_timeout), agent)
 
 
 # --- argument validation ---------------------------------------------------------------------------------------
@@ -438,6 +443,15 @@ class RetryPolicy:
             self._busy += 1
             return min(retry_after if retry_after is not None else 1.0, MAX_POLL_DELAY)
         return None
+
+
+def storage_fault(action: str, reason: str) -> StorageError:
+    """A storage transport failure. ``reason`` is an exception class name or a fixed phrase, never text from the exchange."""
+    return StorageError(f"{action} failed: {reason}")
+
+
+def storage_timeout_reason(seconds: float) -> str:
+    return f"storage_timeout of {seconds:g} seconds exceeded"
 
 
 def storage_failure(response: httpx.Response, method: str) -> Exception:
