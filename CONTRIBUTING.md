@@ -37,6 +37,19 @@ uv build                              # sdist and wheel into dist/
 To run the tests on another Python version: `uv run --python 3.10 pytest` (uv creates a separate environment for it
 unless you set `UV_PROJECT_ENVIRONMENT`).
 
+### Against a real koldera-core
+
+`tests/test_live_core.py` runs the SDK against a running koldera-core (synthetic inputs only): a PDF analyze and fix with the fixed copy
+downloaded and its SHA-256 checked, one HTML-to-PDF job and one structured document job. It is skipped unless
+`KOLDERA_URL` and `KOLDERA_TOKEN` are both set, so CI without a server skips it:
+
+```bash
+KOLDERA_URL=http://localhost:8080 KOLDERA_TOKEN=... uv run pytest tests/test_live_core.py -s
+```
+
+Start koldera-core locally with `docker run` as in its README (bind it to `127.0.0.1` and set
+`KOLDERA_PUBLIC_URL=http://localhost:8080`).
+
 ### Contracts
 
 `contracts/openapi.yaml` and the schemas next to it are copied from koldera-core at the commit named in
