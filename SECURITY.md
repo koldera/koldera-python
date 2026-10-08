@@ -33,5 +33,5 @@ Out of scope:
 - vulnerabilities in third-party dependencies themselves (report them upstream); we want to hear about a vulnerable
   version we ship, though;
 - vulnerabilities in the koldera-core server: report those to
-  [koldera-core](https://github.com/koldera/koldera-core/security/policy);
+  security@koldera-accessibility.dev and say that the report concerns koldera-core;
 - findings that need an application to hand a server token to a browser on purpose.
