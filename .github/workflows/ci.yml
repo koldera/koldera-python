@@ -4,10 +4,11 @@ name: CI
 # The wide compatibility matrix lives in matrix.yml and runs only for release tags (release.yml).
 on:
   pull_request:
-    paths-ignore: ['**/*.md', 'docs/**', '.github/ISSUE_TEMPLATE/**']
+    paths-ignore: [CHANGELOG.md, CONTRIBUTING.md, SECURITY.md, CODE_OF_CONDUCT.md, '.github/ISSUE_TEMPLATE/**', .github/pull_request_template.md, .github/CODEOWNERS]
   push:
     branches: [main]
-    paths-ignore: ['**/*.md', 'docs/**', '.github/ISSUE_TEMPLATE/**']
+    paths-ignore: [CHANGELOG.md, CONTRIBUTING.md, SECURITY.md, CODE_OF_CONDUCT.md, '.github/ISSUE_TEMPLATE/**', .github/pull_request_template.md, .github/CODEOWNERS]
+  workflow_call:
 
 permissions:
   contents: read

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
 from typing import BinaryIO, TypeVar
 
@@ -40,15 +40,29 @@ def _sleep(seconds: float) -> None:
     time.sleep(seconds)
 
 
+class _ExpiredError(Exception):
+    """The storage transfer ran past ``storage_timeout``."""
+
+
+def _chunks(data: bytes, deadline: float) -> Iterator[bytes]:
+    for start in range(0, len(data), 65536):
+        if time.monotonic() > deadline:
+            raise _ExpiredError
+        yield data[start : start + 65536]
+
+
 class _Runner:
     """Performs what the flows ask for with a blocking ``httpx.Client``."""
 
-    def __init__(self, config: core.Config, transport: httpx.BaseTransport | None) -> None:
+    def __init__(self, config: core.Config, transport: httpx.BaseTransport | None, storage_transport: httpx.BaseTransport | None) -> None:
         self.config = config
         self.http = httpx.Client(timeout=config.timeout, transport=transport, follow_redirects=False)
+        # Signed storage URLs carry their own authority: this client never sees the caller's transport or hooks.
+        self.storage = httpx.Client(timeout=httpx.Timeout(config.storage_timeout), transport=storage_transport, follow_redirects=False)
 
     def close(self) -> None:
         self.http.close()
+        self.storage.close()
 
     def run(self, flow: flows.Flow[T]) -> T:
         try:
@@ -112,23 +126,50 @@ class _Runner:
             raise core.api_error(response, retry_after)
 
     def _put(self, op: flows.Put) -> None:
-        response = self.http.put(op.url, content=op.data, headers={"Content-Type": op.content_type})
+        deadline = time.monotonic() + self.config.storage_timeout
+        headers = {"Content-Type": op.content_type, "Content-Length": str(len(op.data))}
+        reason: str | None = None
+        response: httpx.Response | None = None
+        try:
+            response = self.storage.put(op.url, content=_chunks(op.data, deadline), headers=headers)
+        except _ExpiredError:
+            reason = core.storage_timeout_reason(self.config.storage_timeout)
+        except httpx.HTTPError as error:
+            reason = type(error).__name__
+        if response is None:
+            raise core.storage_fault("upload", reason or "no response")
         if not response.is_success:
             raise core.storage_failure(response, "PUT")
 
     def _get(self, op: flows.Get) -> bytes:
-        with self.http.stream("GET", op.url) as response:
-            if not response.is_success:
-                response.read()
-                raise core.storage_failure(response, "GET")
-            chunks: list[bytes] = []
-            total = 0
-            for chunk in response.iter_bytes():
-                total += len(chunk)
-                if total > op.expected:
-                    raise StorageError(f"storage sent more than the declared {op.expected} bytes")
-                chunks.append(chunk)
-            return b"".join(chunks)
+        deadline = time.monotonic() + self.config.storage_timeout
+        reason: str | None = None
+        failure: Exception | None = None
+        chunks: list[bytes] = []
+        try:
+            with self.storage.stream("GET", op.url) as response:
+                if not response.is_success:
+                    response.read()
+                    failure = core.storage_failure(response, "GET")
+                else:
+                    total = 0
+                    for chunk in response.iter_bytes():
+                        if time.monotonic() > deadline:
+                            raise _ExpiredError
+                        total += len(chunk)
+                        if total > op.expected:
+                            failure = StorageError(f"storage sent more than the declared {op.expected} bytes")
+                            break
+                        chunks.append(chunk)
+        except _ExpiredError:
+            reason = core.storage_timeout_reason(self.config.storage_timeout)
+        except httpx.HTTPError as error:
+            reason = type(error).__name__
+        if reason is not None:
+            raise core.storage_fault("download", reason)
+        if failure is not None:
+            raise failure
+        return b"".join(chunks)
 
 
 class KolderaClient:
@@ -139,7 +180,9 @@ class KolderaClient:
         token: server token, any non-empty string the server accepts (default: ``KOLDERA_TOKEN``). Never ship it
             to a browser; mint a session with ``client_sessions.create`` instead.
         timeout: per-request timeout in seconds (default 30); a ``wait`` stretches it to cover the wait.
-        transport: an ``httpx.BaseTransport`` (test seam, custom proxies).
+        transport: an ``httpx.BaseTransport`` for API requests (test seam, custom proxies).
+        storage_timeout: total seconds for one upload or download through a signed storage URL (default 600).
+        storage_transport: an ``httpx.BaseTransport`` for storage requests (test seam); it must not add credentials.
         user_agent_suffix: product token appended to the SDK's User-Agent.
 
     Network failures surface as ``httpx`` exceptions; everything the server or the SDK refuses is a
@@ -153,10 +196,12 @@ class KolderaClient:
         *,
         timeout: float = 30.0,
         transport: httpx.BaseTransport | None = None,
+        storage_timeout: float = 600.0,
+        storage_transport: httpx.BaseTransport | None = None,
         user_agent_suffix: str | None = None,
     ) -> None:
-        config = core.resolve_config(base_url, token, timeout, user_agent_suffix)
-        self._runner = _Runner(config, transport)
+        config = core.resolve_config(base_url, token, timeout, user_agent_suffix, storage_timeout)
+        self._runner = _Runner(config, transport, storage_transport)
         self.uploads = Uploads(self._runner)
         self.jobs = Jobs(self._runner)
         self.pdf = Pdf(self._runner)
