@@ -10,7 +10,7 @@ readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
 requires-python = ">=3.10"
-authors = [{ name = "makulatura78" }]
+authors = [{ name = "Roman Lakusta" }]
 keywords = ["pdf", "accessibility", "pdf-ua", "wcag", "koldera"]
 dependencies = ["httpx>=0.28,<1"]
 classifiers = [
