@@ -1,6 +1,6 @@
 # koldera-python
 
-Python SDK for koldera-core, the commercially licensed, self-hosted service that checks PDFs
+Python SDK for koldera-core, the AGPL-3.0-only, self-hosted service that checks PDFs
 against the PDF/UA-1 machine rules, writes fixed copies, renders HTML and structured documents to tagged PDF, and scans
 web pages. A synchronous client (`KolderaClient`) and an asynchronous client (`AsyncKolderaClient`) share one
 implementation, are fully typed (`py.typed`) and run on Python 3.10 to 3.14.
@@ -9,7 +9,20 @@ Everything koldera-core reports is a **machine check**. A person still has to re
 `job.manual_review_required` is always `True`, and this SDK never turns a passing machine check into a statement that a
 document is accessible.
 
-Status: early release (0.1). The API may change before 1.0.
+**Status:** source preview for the 0.1 API. No PyPI package or GitHub Release has been published yet. The API may change
+before 1.0. A running [Koldera Core](https://github.com/koldera/koldera-core) deployment is required to run jobs.
+
+## Use this checkout
+
+To install development dependencies and test this source before the first PyPI release, use Python 3.10 or later and `uv`:
+
+```sh
+uv sync --locked
+uv run pytest
+uv build
+```
+
+The install command below applies once `koldera` is published to PyPI.
 
 ## Install
 
@@ -17,7 +30,7 @@ Status: early release (0.1). The API may change before 1.0.
 pip install koldera
 ```
 
-The only runtime dependency is [httpx](https://www.python-httpx.org/). The API reference (pdoc) is published to
+The only runtime dependency is [httpx](https://www.python-httpx.org/). The API reference (pdoc) is set to publish to
 GitHub Pages with each release and built in CI on every pull request.
 
 ## Quick start (sync)
@@ -220,8 +233,8 @@ with the status, `Location`, `Preference-Applied` and `Idempotent-Replayed`).
 
 The vendored API description in [`contracts/`](contracts) records the koldera-core commit it was taken from
 (`contracts/CORE_VERSION`) and the sdk-contract-kit commit it was synced from (`contracts/KIT_VERSION`), and CI checks
-that the copy matches. Run koldera-core as described in its
-README and deployment guide.
+that the copy matches. Core deployment documentation is supplied to licensed customers; for access, write to
+`licensing@koldera-accessibility.dev`.
 
 ## Links
 
@@ -231,4 +244,4 @@ README and deployment guide.
 
 This SDK is licensed under the [Apache License 2.0](LICENSE).
 
-koldera-core is commercially licensed, self-hosted software; this SDK is Apache-2.0 and talks to it over its HTTP API.
+koldera-core is AGPL-3.0-only, self-hosted software; this SDK is Apache-2.0 and talks to it over its HTTP API.
