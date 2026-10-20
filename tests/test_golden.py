@@ -402,6 +402,16 @@ class TestPollingAndReads:
         golden.expect("job-completed-session")
         assert make(token=SESSION_TOKEN).jobs.get(JOB_ID).validation.status == "failed"
 
+    @pytest.mark.parametrize("name", ["job-completed-fix-declaration-withheld", "job-completed-document-declaration-withheld"])
+    def test_declaration_withheld_is_its_own_verdict_never_passed(self, client: Any, golden: Golden, name: str) -> None:
+        golden.expect(name)
+        done = client.jobs.get(FIXTURES[name]["response"]["body"]["id"])
+        assert done.state == "completed"
+        for validation in (done.validation, done.final_validation):
+            assert validation.status == "declaration_withheld"
+            assert [(r.rule_id, r.count) for r in validation.failed_rules] == [("ISO 14289-1:2014 5-1", 1)]
+        assert done.manual_review_required is True
+
 
 def artifact_for(name: str, **fields: Any) -> Artifact:
     fixture = FIXTURES[name]

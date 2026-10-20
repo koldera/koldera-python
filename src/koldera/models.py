@@ -33,6 +33,7 @@ KNOWN_ARTIFACT_KINDS = (
     "web_report",
     "reordered",
 )
+KNOWN_VALIDATION_STATUSES = ("passed", "failed", "error", "not_run", "declaration_withheld")
 KNOWN_REMEDIATION_STATUSES = ("not_requested", "no_applicable_fix", "applied", "skipped", "rolled_back")
 KNOWN_FEATURES = ("document", "html", "pdf", "web")
 _UNFINISHED_STATES = frozenset({"queued", "running"})
@@ -74,7 +75,12 @@ class FailedRule:
 
 @dataclass(frozen=True, slots=True)
 class MachineValidation:
-    """Automated validation (veraPDF or axe rules): a machine check, never a statement of conformance."""
+    """Automated validation (veraPDF or axe rules): a machine check, never a statement of conformance.
+
+    ``declaration_withheld``: the only failing check is the missing PDF/UA identifier (veraPDF ``5-1``, still listed in
+    ``failed_rules``), which was not written because declaring PDF/UA requires a human review. It is not a pass. Treat a
+    status you do not know as no verdict.
+    """
 
     profile: str
     status: str
